@@ -1,25 +1,104 @@
-// Top-level build file where you can add configuration options common to all sub-projects/modules.
 buildscript {
-  repositories {
-    jcenter()
-  }
-  dependencies {
-    classpath 'com.android.tools.build:gradle:1.2.0'
-  }
+    repositories {
+        google()
+        mavenCentral()
+        maven { url 'https://plugins.gradle.org/m2/' }
+    }
+
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.5.2'
+        classpath 'gradle.plugin.org.kt3k.gradle.plugin:coveralls-gradle-plugin:2.12.0'
+        classpath 'com.vanniktech:gradle-maven-publish-plugin:0.29.0'
+    }
+    // Ensure the buildscript classpath resolves plugins compiled for Java 11+
+    configurations.classpath.attributes.attribute(
+        org.gradle.api.attributes.java.TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE,
+        17
+    )
+}
+
+// No root plugins DSL needed; module applies publishing plugin
+// Ensure all projects have correct coordinates
+//allprojects { proj ->
+//    proj.version = VERSION_NAME
+//    // Do not force group for the library module; it publishes under the Central namespace
+//    if (proj.name != 'android-json-form-wizard') {
+//        proj.group = GROUP
+//    }
+//}
+
+allprojects {
+    group = project.findProperty("GROUP") ?: "io.github.bluecodesystems"
+    version = project.findProperty("VERSION_NAME") ?: "1.0.0"
+}
+
+configure(allprojects) { project ->
+    buildscript {
+        repositories {
+            mavenCentral()
+            google()
+            maven { url 'https://oss.sonatype.org/content/repositories/snapshots/' }
+            maven { url 'https://plugins.gradle.org/m2/'}
+            mavenLocal()
+        }
+    }
+}
+// Root project does not publish artifacts; module ':library' handles publishing
+
+
+project.ext.preDexLibs = !project.hasProperty('disablePreDex')
+subprojects {
+
+    // Keep default group for app/test modules only; library overrides its own group
+
+    ext.androidToolsBuildGradle = '8.5.2'
+    ext.androidBuildToolsVersion = '34.0.0'
+    ext.androidMinSdkVersion = 18
+    ext.androidCompileSdkVersion = 34
+    ext.androidTargetSdkVersion = 34
+
+    ext.androidAnnotationsVersion = '3.0.1'
+    ext.androidAnnotationsAPIVersion = '3.0.1'
+
+    repositories {
+        google()
+        mavenCentral()
+        maven { url 'https://jitpack.io' }
+        maven { url 'https://oss.sonatype.org/content/repositories/snapshots/' }
+        mavenLocal()
+    }
+
+    // Improve build server performance by allowing disabling of pre-dexing
+    // (see http://tools.android.com/tech-docs/new-build-system/tips#TOC-Improving-Build-Server-performance.)
+    // Removed obsolete dexOptions configuration not supported in newer AGP
+}
+// Configure test reports via tasks API
+tasks.withType(Test).configureEach {
+    reports {
+        html.required.set(false)
+        junitXml.required.set(false)
+    }
 }
 
 def isReleaseBuild() {
-  return version.contains("SNAPSHOT") == false
+    return version.contains("SNAPSHOT") == false
 }
 
-allprojects {
-  version = VERSION_NAME
-  group = GROUP
 
-  repositories {
-    jcenter()
-    maven { url 'https://oss.sonatype.org/content/groups/public' }
-  }
+// Expose common credential properties for Central Portal
+ext {
+    if (!project.hasProperty('mavenCentralUsername')) {
+        mavenCentralUsername = System.getenv('MAVEN_CENTRAL_USERNAME') ?: System.getenv('OSSRH_USERNAME') ?: ''
+    }
+    if (!project.hasProperty('mavenCentralPassword')) {
+        mavenCentralPassword = System.getenv('MAVEN_CENTRAL_PASSWORD') ?: System.getenv('OSSRH_PASSWORD') ?: ''
+    }
+    if (!project.hasProperty('sonatypeUsername')) {
+        sonatypeUsername = System.getenv('OSSRH_USERNAME') ?: ''
+    }
+    if (!project.hasProperty('sonatypePassword')) {
+        sonatypePassword = System.getenv('OSSRH_PASSWORD') ?: ''
+    }
 }
 
-apply plugin: 'android-reporting'
+// Central publishing handled in :library via Vanniktech

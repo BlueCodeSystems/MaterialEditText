@@ -1,12 +1,22 @@
 apply plugin: 'com.android.library'
+apply plugin: 'com.vanniktech.maven.publish'
+apply plugin: 'signing'
+
+import com.vanniktech.maven.publish.SonatypeHost
+import com.vanniktech.maven.publish.AndroidSingleVariantLibrary
 
 android {
-  compileSdkVersion Integer.parseInt(project.ANDROID_BUILD_SDK_VERSION)
-  buildToolsVersion project.ANDROID_BUILD_TOOLS_VERSION
+  compileSdk Integer.parseInt(project.ANDROID_BUILD_SDK_VERSION)
+  namespace 'com.rengwuxian.materialedittext'
 
   defaultConfig {
-    minSdkVersion 7
-    targetSdkVersion Integer.parseInt(project.ANDROID_BUILD_SDK_VERSION)
+    minSdk 19
+    targetSdk Integer.parseInt(project.ANDROID_BUILD_TARGET_SDK_VERSION)
+  }
+
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_1_8
+    targetCompatibility JavaVersion.VERSION_1_8
   }
   buildTypes {
     release {
@@ -17,10 +27,61 @@ android {
 }
 
 dependencies {
-  compile 'com.android.support:support-annotations:22.2.0'
-  compile 'com.nineoldandroids:library:2.4.0'
-  compile 'com.android.support:appcompat-v7:22.2.0'
+  implementation 'androidx.annotation:annotation:1.7.0'
+  implementation 'com.nineoldandroids:library:2.4.0'
+  implementation 'androidx.appcompat:appcompat:1.6.1'
 }
 
-// Used to push in maven
-apply from: '../maven_push.gradle'
+// Vanniktech Maven Publish configured for Central Portal
+mavenPublishing {
+  configure(new AndroidSingleVariantLibrary("release"))
+  
+  // Only configure Central Portal if we have signing credentials
+  if (project.hasProperty('signingKey') || System.getenv('SIGNING_KEY') || 
+      project.hasProperty('mavenCentralUsername') || System.getenv('MAVEN_CENTRAL_USERNAME')) {
+    publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
+    signAllPublications()
+  }
+
+  coordinates project.GROUP, project.POM_ARTIFACT_ID, project.VERSION_NAME
+}
+
+// Configure signing - skip if no credentials
+signing {
+  required { gradle.taskGraph.hasTask("publish") && (project.hasProperty('signingKey') || System.getenv('SIGNING_KEY')) }
+  
+  if (project.hasProperty('signingKey') || System.getenv('SIGNING_KEY')) {
+    if (project.hasProperty('signingKey')) {
+      useInMemoryPgpKeys(project.findProperty('signingKey') as String, project.findProperty('signingPassword') as String)
+    } else {
+      useInMemoryPgpKeys(System.getenv('SIGNING_KEY'), System.getenv('SIGNING_PASSWORD'))
+    }
+  } else {
+    useGpgCmd()
+  }
+}
+
+
+// Publish to a local Central bundle repository (same approach as circleprogressbar)
+afterEvaluate {
+  publishing {
+    repositories {
+      if ((project.findProperty('centralBundle')?.toString()?.toBoolean()) == true) {
+        maven {
+          name = "CentralBundle"
+          url = layout.buildDirectory.dir("central-bundle")
+        }
+      }
+    }
+  }
+}
+
+// Zip the local Central bundle repository for upload in the Central Portal UI
+tasks.register("zipCentralBundle", Zip) {
+  // Depend on any tasks that publish to CentralBundle (single or all publications)
+  dependsOn tasks.matching { it.name.startsWith('publish') && it.name.endsWith('ToCentralBundleRepository') }
+  from(layout.buildDirectory.dir("central-bundle"))
+  destinationDirectory = layout.buildDirectory.dir("distributions")
+  archiveBaseName.set("central-bundle-${project.POM_ARTIFACT_ID}")
+  archiveVersion.set(project.VERSION_NAME)
+}
