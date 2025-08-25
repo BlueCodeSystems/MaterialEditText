@@ -91,6 +91,19 @@ Maven:
 
 See on [Wiki Page](https://github.com/rengwuxian/MaterialEditText/wiki) or [中文看这里](http://www.rengwuxian.com/post/materialedittext)
 
+## Build
+
+- Prerequisites: Java 11+ and Android SDK installed. The included Gradle wrapper handles the rest.
+- Build the library AAR: `./gradlew :library:assembleRelease`
+- Build and install the sample app (on a connected device/emulator): `./gradlew :sample:installDebug`
+- Publish to local Maven for testing: `./gradlew :library:publishToMavenLocal`
+
+## Development
+
+- Open the project in Android Studio and let it sync.
+- Run unit checks: `./gradlew check`
+- Do not commit build outputs (e.g., `build/`, `.gradle/`). Use the provided `.gitignore`.
+
 ## Thanks to
 
 [NineOldAndroids](https://github.com/JakeWharton/NineOldAndroids/)
